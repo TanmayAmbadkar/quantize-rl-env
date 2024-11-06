@@ -8,6 +8,8 @@ from torchvision.transforms.functional import to_pil_image
 import matplotlib.pyplot as plt
 import imageio
 import numpy as np
+from sklearn.cluster import KMeans
+import os
 
 def train(env):
     policy_kwargs = dict(
@@ -22,7 +24,7 @@ def train(env):
     model.set_logger(new_logger)
 
     # Train the model and collect data
-    model.learn(total_timesteps=500000)
+    model.learn(total_timesteps=1000000)
     model.save("ppo_carracing")
 
 
@@ -33,10 +35,12 @@ def test(env):
     state, _ = env.reset()
     images = []
     recons = []
+    indices = []
     while True:
         emb, ind = model.policy.features_extractor.cnn.get_quantized_embedding_with_id(torch.Tensor(state).permute(2, 0, 1).reshape(1, 3, 96, 96)/255)
         state, reward, done, trunc, _ = env.step(env.action_space.sample())
         
+        indices.append(ind[0].numpy())
         state_tensor = torch.Tensor(state).permute(2, 0, 1).reshape(1, 3, 96, 96)/255
         recon, loss = model.policy.features_extractor.cnn(state_tensor)
         
@@ -50,8 +54,14 @@ def test(env):
 
     imageio.mimsave(f"gifs/carracing_true.gif", [np.array(img) for i, img in enumerate(images) if i%2 == 0], fps=29)
     imageio.mimsave(f"gifs/carracing_recon.gif", [np.array(img) for i, img in enumerate(recons) if i%2 == 0], fps=29)
+    
    
 if __name__ == "__main__":
     
     env = gym.make("CarRacing-v2")
-    test(env)
+    train(env)
+    
+    if not os.path.isdir("images"):
+        os.mkdir("images")
+    if not os.path.isdir("gifs"):
+        os.mkdir("gifs")
